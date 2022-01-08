@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_17" project-jdk-name="openjdk-17" project-jdk-type="JavaSDK">
+    <output url="file://$PROJECT_DIR$/classes" />
+  </component>
+  <component name="SvnBranchConfigurationManager">
+    <option name="myConfigurationMap">
+      <map>
+        <entry key="$PROJECT_DIR$">
+          <value>
+            <SvnBranchConfiguration>
+              <option name="branchUrls">
+                <list>
+                  <option value="https://svn.win.tue.nl/repos/prom/Packages/ProM-Plugins/Branches" />
+                  <option value="https://svn.win.tue.nl/repos/prom/Packages/ProM-Plugins/Tags" />
+                </list>
+              </option>
+              <option name="trunkUrl" value="https://svn.win.tue.nl/repos/prom/Packages/ProM-Plugins/Trunk" />
+            </SvnBranchConfiguration>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/.settings">
+          <value>
+            <SvnBranchConfiguration>
+              <option name="trunkUrl" value="https://svn.win.tue.nl/repos/prom/Settings" />
+            </SvnBranchConfiguration>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
