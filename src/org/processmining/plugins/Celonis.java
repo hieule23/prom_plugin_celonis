@@ -5,7 +5,14 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
@@ -31,7 +38,7 @@ public class Celonis {
 		this.apiToken = apiToken;
 	}
 	
-	public void uploadCSV(String dataPoolId, String fileLocation, String tableName, String timestampColumn, int chunkSize) throws CsvValidationException, IOException {
+	public void uploadCSV(String dataPoolId, String fileLocation, String tableName, String timestampColumn, int chunkSize) throws CsvValidationException, IOException, InterruptedException, ExecutionException {
 //		System.out.println("Creating table schema");
 //		System.out.println("##################");
 		TableTransport tableSchema = this.getTableConfig(fileLocation, timestampColumn, tableName);
@@ -66,7 +73,88 @@ public class Celonis {
         return job.getId();
 	}
 	
-	private void uploadCsvChunk(int chunkSize, String dataPoolId, String jobId, String fileLocation) throws CsvValidationException, IOException {
+	private void uploadCsvChunk(int chunkSize, String dataPoolId, String jobId, String fileLocation) throws CsvValidationException, IOException, InterruptedException, ExecutionException {
+		System.out.println("Start devide chunks");
+		long startDivide = System.currentTimeMillis();
+		List<String> chunksLocation = devideChunks(fileLocation, chunkSize);
+		System.out.println("Done devide chunks");
+		long endDivide = System.currentTimeMillis();
+		System.out.println((endDivide - startDivide)/60000);
+		
+		ExecutorService executorService = Executors.newFixedThreadPool(100);
+		Set<Callable<String>> callables = new HashSet<Callable<String>>();
+		System.out.println("Start push chunks");
+		long startPush = System.currentTimeMillis();
+		for (String chunk : chunksLocation) {
+			callables.add(new Callable<String>() {
+			    public String call() throws Exception {
+			    	uploadFile(dataPoolId, jobId, chunk);
+			        return "finish uploading " + chunk;
+			    }
+			});
+		}
+		List<Future<String>> futures = executorService.invokeAll(callables);
+
+		for(Future<String> future : futures){
+		    System.out.println(future.get());
+		}
+		executorService.shutdown();
+		long endPush = System.currentTimeMillis();
+		System.out.println("End"
+				+ " push chunks");
+		System.out.println((endPush - startPush)/60000);
+		
+		
+		for (String chunk: chunksLocation) {
+			File tempFile = new File(chunk);
+			tempFile.delete();
+		}
+	}
+//	private void uploadCsvChunk(int chunkSize, String dataPoolId, String jobId, String fileLocation) throws CsvValidationException, IOException {
+//		CSVReader reader = new CSVReader(new FileReader(fileLocation));
+//		String[] tableHeader = reader.readNext();
+//		int chunkIndex = 0;		
+//		List<String []> subLog = new ArrayList<>();
+//		String[] nextLine;
+//		long startPush = System.currentTimeMillis();
+//		while ((nextLine = reader.readNext()) != null) {
+//			if (chunkIndex != chunkSize) {				
+//				subLog.add(nextLine);						
+//				chunkIndex += 1;
+//			}
+//			else {			
+//				File tempFile = File.createTempFile("chunk", ".csv");
+//				System.out.println(tempFile.toPath().toString());
+//				FileWriter outputFile = new FileWriter(tempFile);
+//				CSVWriter writer = new CSVWriter(outputFile);
+//				writer.writeNext(tableHeader);
+//				writer.writeAll(subLog);
+//				writer.close();
+//				this.uploadFile(dataPoolId, jobId, tempFile.toPath().toString());		
+//				tempFile.delete();
+//				chunkIndex = 1;				
+//				subLog.clear();
+//				subLog.add(nextLine);				
+//			}			
+//		}
+//		if (chunkIndex != 0) {
+//			File tempFile = File.createTempFile("chunk", ".csv");
+//			System.out.println(tempFile.toPath().toString());
+//			FileWriter outputFile = new FileWriter(tempFile);
+//			CSVWriter writer = new CSVWriter(outputFile);
+//			writer.writeNext(tableHeader);
+//			writer.writeAll(subLog);
+//			writer.close();
+//			this.uploadFile(dataPoolId, jobId, tempFile.toPath().toString());	
+//		}
+//		long endPush = System.currentTimeMillis();	
+//		System.out.println((endPush - startPush)/60000);
+//		
+//	}
+	
+	private List<String> devideChunks(String fileLocation, int chunkSize) throws CsvValidationException, IOException {
+		List<String> chunksLocation = new ArrayList<String>();
+		
 		CSVReader reader = new CSVReader(new FileReader(fileLocation));
 		String[] tableHeader = reader.readNext();
 		int chunkIndex = 0;		
@@ -76,8 +164,11 @@ public class Celonis {
 			if (chunkIndex != chunkSize) {				
 				subLog.add(nextLine);						
 				chunkIndex += 1;
+				System.out.println(nextLine[1]);
+				System.out.println(chunkIndex);
 			}
-			else {			
+			else {
+				System.out.println(subLog.get(4)[1]);				
 				File tempFile = File.createTempFile("chunk", ".csv");
 				System.out.println(tempFile.toPath().toString());
 				FileWriter outputFile = new FileWriter(tempFile);
@@ -85,8 +176,7 @@ public class Celonis {
 				writer.writeNext(tableHeader);
 				writer.writeAll(subLog);
 				writer.close();
-				this.uploadFile(dataPoolId, jobId, tempFile.toPath().toString());		
-				tempFile.delete();
+				chunksLocation.add(tempFile.toString());
 				chunkIndex = 1;				
 				subLog.clear();
 				subLog.add(nextLine);				
@@ -100,9 +190,10 @@ public class Celonis {
 			writer.writeNext(tableHeader);
 			writer.writeAll(subLog);
 			writer.close();
-			this.uploadFile(dataPoolId, jobId, tempFile.toPath().toString());	
+			chunksLocation.add(tempFile.toString());
 		}
 		
+		return chunksLocation;
 	}
 	
 	private void uploadFile(String dataPoolId, String jobId, String fileLocation) {

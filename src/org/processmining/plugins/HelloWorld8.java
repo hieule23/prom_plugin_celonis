@@ -2,6 +2,7 @@ package org.processmining.plugins;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.deckfour.xes.model.XLog;
 import org.processmining.contexts.uitopia.UIPluginContext;
@@ -28,7 +29,7 @@ public class HelloWorld8 {
             author = "Hieu Le", 
             email = "hieu.le@rwth-aachen.de"
     )
-    public static XLog helloWorlds(UIPluginContext context, XLog log) throws IOException, CsvValidationException{
+    public static XLog helloWorlds(UIPluginContext context, XLog log) throws IOException, CsvValidationException, InterruptedException, ExecutionException{
     	ExportLogCsv export = new ExportLogCsv();
     	String tempFileLocation = "D:\\eclipse\\proj\\test\\data\\new-test.csv";
     	File csv = new File(tempFileLocation);
@@ -39,12 +40,12 @@ public class HelloWorld8 {
     	String apiToken = "M2M5ZWJmODItZTYzZi00ZDI5LTg3Y2QtYjY2NWY4YmFkOWY2Om9HKytLY1lZcFV6NXNSSnBGS0hNc2poUUJ0R09sbXNjTnp5Syt6VDVkZDZP";
     	String dataPoolId = "1956bd42-c2ab-4d0a-a0ba-85346953ffa0";
     	String timestampName = "completeTime";
-    	String tableName = "new-csv-6";
+    	String tableName = "new-csv-7";
     	
     	Celonis celonis = new Celonis(url, apiToken);
     	
         
-    	celonis.uploadCSV(dataPoolId, tempFileLocation, tableName, timestampName, 5);    
+    	celonis.uploadCSV(dataPoolId, tempFileLocation, tableName, timestampName, 100000);    
         return log;            
         
         
