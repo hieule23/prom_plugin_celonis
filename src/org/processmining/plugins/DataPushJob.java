@@ -85,7 +85,7 @@ public class DataPushJob implements Serializable{
 		this.upsertStrategy = upsertStrategy;
 	}
 	public enum fileType{
-		PARQUET, CSV, XES
+		PARQUET, CSV
 	}
 	public enum type{
 		REPLACE, DELTA

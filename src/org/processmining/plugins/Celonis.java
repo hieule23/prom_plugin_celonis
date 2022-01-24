@@ -13,11 +13,16 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
@@ -38,14 +43,280 @@ public class Celonis {
 		this.apiToken = apiToken;
 	}
 	
+	public void getDataPools() {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/integration/api/pools";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(headers);       
+        restTemplate.exchange(targetUrl, HttpMethod.GET, jobRequest, String.class);        
+	}
+	public void getDataModels(String dataPoolId) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/integration/api/pools/" + dataPoolId + "/data-models";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(headers);       
+        restTemplate.exchange(targetUrl, HttpMethod.GET, jobRequest, String.class);        
+	}
+	public void getAnalyses() {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/process-mining/api/analysis";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(headers);       
+        restTemplate.exchange(targetUrl, HttpMethod.GET, jobRequest, String.class);        
+	}
+	public void getAnalysesDataModel(String anaId) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/process-mining/analysis/v1.2/api/analysis/" + anaId + "/data_model";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(headers);       
+        restTemplate.exchange(targetUrl, HttpMethod.GET, jobRequest, String.class);        
+	}
+	
+	public String createAnalysis(String workspaceId, String name) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/process-mining/api/analysis";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        JSONObject request = new JSONObject();
+        request.put("name", name);
+        request.put("processId", workspaceId);
+        request.put("applicationId", JSONObject.NULL);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);       
+        
+        ResponseEntity<String> r = restTemplate.exchange(targetUrl, HttpMethod.POST, jobRequest, String.class);
+        
+        JSONObject body = new JSONObject(r.getBody());
+        return body.getString("id");
+	}
+	
+	public String createWorkspace (String dataModelId, String name) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/process-mining/api/processes";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        JSONObject request = new JSONObject();
+        request.put("name", name);
+        request.put("dataModelId", dataModelId);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);       
+        
+        ResponseEntity<String> r = restTemplate.exchange(targetUrl, HttpMethod.POST, jobRequest, String.class);
+        
+        JSONObject body = new JSONObject(r.getBody());
+        return body.getString("id");
+        
+	}
+	
+	public void addProcessConfiguration (String dataModelId, String dataPoolId, String actTable, String caseTable, String caseIdColumn, 
+			String actColumn, String timestampColumn) {
+		String actTableId = this.getTableByName(actTable, dataModelId, dataPoolId);
+		String caseTableId = this.getTableByName(caseTable, dataModelId, dataPoolId);
+		
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/pools/%s/data-models/" + dataModelId + "/process-configurations", dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        JSONObject request = new JSONObject();
+        request.put("activityTableId", actTableId);
+        request.put("caseTableId", caseTableId);
+        request.put("caseIdColumn", caseIdColumn);
+        request.put("activityColumn", actColumn);
+        request.put("timestampColumn", timestampColumn);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);        
+        restTemplate.exchange(targetUrl, HttpMethod.PUT, jobRequest, String.class);          
+        
+	}
+	
+	public void reloadDataModel (String dataModelId, String dataPoolId) throws InterruptedException {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/pools/%s/data-models/" + dataModelId + "/reload", dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        JSONObject request = new JSONObject();
+        request.put("forceComplete", true);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);        
+        restTemplate.postForEntity(targetUrl, jobRequest, Object.class);        
+        
+        while(true) {
+        	String loadUrl = String.format(this.url + "/integration/api/pools/%s/data-models/" + 
+        						dataModelId + "/load-history/load-info-sync", dataPoolId);
+        	HttpEntity<String> loadRequest = new HttpEntity<String>(null,headers);  
+        	RestTemplate restTemplate1 = new RestTemplate();
+    		ResponseEntity<String> r = restTemplate1.exchange(loadUrl, HttpMethod.GET, loadRequest, String.class);
+    		
+    		JSONObject body = new JSONObject(r.getBody());
+    		String status = body.getJSONObject("loadInfo").getJSONObject("currentComputeLoad").getString("loadStatus");
+    		if (status.equals("SUCCESS")) {
+    			break;
+    		}
+    		TimeUnit.SECONDS.sleep(3);
+    		
+        }
+	}
+	
+	public String getTableByName(String tableName, String dataModelId, String dataPoolId) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/pools/%s/data-model/" + dataModelId + "/tables", dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        HttpEntity<Void> jobRequest = new HttpEntity<>(headers);
+        
+        ResponseEntity<String> r = restTemplate.exchange(targetUrl, HttpMethod.GET, jobRequest, String.class);
+        JSONArray body = new JSONArray(r.getBody());
+        
+        String res = "";
+        for (int i = 0; i < body.length(); i++) {
+        	JSONObject obj = body.getJSONObject(i);        	
+        	if (obj.getString("name").equals(tableName)) {        		
+        		res = obj.getString("id");
+        		break;
+        	}
+        }
+        
+        return res;
+        
+	}
+	
+	public void addForeignKeys(String table1, String column1, String table2, String column2, String dataModelId, String dataPoolId) {
+		String table1Id = this.getTableByName(table1, dataModelId, dataPoolId);
+		String table2Id = this.getTableByName(table2, dataModelId, dataPoolId);
+		
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/pools/%s/data-models/" + dataModelId + "/foreign-keys", dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);		
+        
+        JSONObject request = new JSONObject();
+        JSONObject column = new JSONObject();
+        column.put("sourceColumnName", column1);
+        column.put("targetColumnName", column2);
+        JSONArray columns = new JSONArray();
+        columns.put(column);
+        request.put("dataModelId", dataModelId);
+        request.put("sourceTableId", table1Id);
+        request.put("targetTableId", table2Id);
+        request.put("columns", columns);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);        
+        restTemplate.postForEntity(targetUrl, jobRequest, Object.class);        
+        
+ 	}
+	
+	public void addTableFromPool(String tableName, String dataPoolId, String dataModelId) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/pools/%s/data-model/" + dataModelId + "/tables", dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);		
+        
+        JSONObject request = new JSONObject();
+        request.put("name", tableName);
+        request.put("alias", tableName);
+        request.put("dataModelId", dataModelId);
+        request.put("dataSourceId", JSONObject.NULL);
+        
+        List<JSONObject> request1 = new ArrayList<JSONObject>();
+        request1.add(request);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request1.toString(), headers);        
+       
+        restTemplate.postForEntity(targetUrl, jobRequest, Object.class);        
+	}
+	
+	public String createDataPool(String name) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = this.url + "/integration/api/pools";
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);	
+        
+        JSONObject request = new JSONObject();
+        request.put("name", name);
+        
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);       
+        
+        ResponseEntity<String> r = restTemplate.exchange(targetUrl, HttpMethod.POST, jobRequest, String.class);
+        
+        JSONObject body = new JSONObject(r.getBody());
+        return body.getString("id");
+	}
+	
+	public String createDataModel(String modelName, String dataPoolId) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/pools/%s/data-models", dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);		
+        
+        JSONObject request = new JSONObject();
+        request.put("name", modelName);
+        request.put("poolId", dataPoolId);
+        request.put("configurationSkipped", true);
+
+        HttpEntity<String> jobRequest = new HttpEntity<String>(request.toString(), headers);
+ 
+        String r = restTemplate.postForObject(targetUrl, jobRequest, String.class);
+        JSONObject body = new JSONObject(r);
+        return body.getString("id");
+	}
+	
 	public void uploadCSV(String dataPoolId, String fileLocation, String tableName, String timestampColumn, int chunkSize) throws CsvValidationException, IOException, InterruptedException, ExecutionException {
 //		System.out.println("Creating table schema");
 //		System.out.println("##################");
-		TableTransport tableSchema = this.getTableConfig(fileLocation, timestampColumn, tableName);
+		TableTransport tableSchema = getTableConfig(fileLocation, timestampColumn, tableName);
 		String jobId = this.createPushJob(dataPoolId, tableName, tableSchema);
 		this.uploadCsvChunk(chunkSize, dataPoolId, jobId, fileLocation);
-		this.executeJob(jobId, dataPoolId);
-		        
+		this.executeJob(jobId, dataPoolId);	
+		System.out.println("start getting status");
+		
+		while (true) {
+			String status = getStatus(dataPoolId, jobId);
+			System.out.println(status);
+			if (status.equals("DONE")){
+				break;
+			}
+			TimeUnit.SECONDS.sleep(3);
+		}
+		System.out.println("done");
+
+	}
+	
+	private String getStatus(String dataPoolId, String jobId) {
+		RestTemplate restTemplate = new RestTemplate();
+		String targetUrl = String.format(this.url + "/integration/api/v1/data-push/%s/jobs/" + jobId, dataPoolId);
+		HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer " + this.apiToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Void> jobRequest = new HttpEntity<>(headers);
+		ResponseEntity<String> r = restTemplate.exchange(targetUrl, HttpMethod.GET, jobRequest, String.class);
+		JSONObject body = new JSONObject(r.getBody());
+		return body.getString("status");
 	}
 	
 	private String createPushJob(String dataPoolId, String tableName, TableTransport tableSchema) {		
@@ -164,8 +435,6 @@ public class Celonis {
 			if (chunkIndex != chunkSize) {				
 				subLog.add(nextLine);						
 				chunkIndex += 1;
-				System.out.println(nextLine[1]);
-				System.out.println(chunkIndex);
 			}
 			else {
 				System.out.println(subLog.get(4)[1]);				
@@ -221,7 +490,7 @@ public class Celonis {
 		HttpEntity<Object> sealRequest = new HttpEntity<>(null, headers);
 		RestTemplate restTemplate = new RestTemplate();
         restTemplate.setMessageConverters(getJsonMessageConverters());
-        restTemplate.postForEntity(sealUrl, sealRequest, Object.class);    
+        Object re = restTemplate.postForEntity(sealUrl, sealRequest, Object.class);    
 	}
 	
 	private static TableTransport getTableConfig(String fileLocation, String timestampColumn, String tableName) throws CsvValidationException, IOException {

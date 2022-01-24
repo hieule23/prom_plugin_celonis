@@ -1,51 +1,60 @@
 package org.processmining.plugins;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.concurrent.ExecutionException;
+import java.util.Scanner;
 
 import org.deckfour.xes.model.XLog;
 import org.processmining.contexts.uitopia.UIPluginContext;
 import org.processmining.contexts.uitopia.annotations.UITopiaVariant;
 import org.processmining.framework.plugin.annotations.Plugin;
-import org.processmining.log.csvexport.ExportLogCsv;
-
-import com.opencsv.exceptions.CsvValidationException;
-
-
-
 
 public class HelloWorld8 {
     @Plugin(
-            name = "aaaa", 
+            name = "aaa - Demo Celonis connection", 
             parameterLabels = { "Log"}, 
-            returnLabels = { "First string several second strings" }, 
+            returnLabels = { "" }, 
             returnTypes = { XLog.class }, 
             userAccessible = true, 
-            help = "Produces one string consisting of the first and a number of times a string given as input in a dialog."
+            help = "Connect with Celonis data pool"
     )
     @UITopiaVariant(
             affiliation = "rwth", 
             author = "Hieu Le", 
             email = "hieu.le@rwth-aachen.de"
     )
-    public static XLog helloWorlds(UIPluginContext context, XLog log) throws IOException, CsvValidationException, InterruptedException, ExecutionException{
-    	ExportLogCsv export = new ExportLogCsv();
-    	String tempFileLocation = "D:\\eclipse\\proj\\test\\data\\new-test.csv";
-    	File csv = new File(tempFileLocation);
-    	export.export(context, log, csv);
+    public static XLog helloWorlds(UIPluginContext context, XLog log) throws Exception{
+    	String url = "https://academic-hieu-le-rwth-aachen-de.eu-2.celonis.cloud/";
+    	String apiToken = "ZTk5MGZlMjktYWU4Zi00ZTA0LWE1ZjQtYzk5OGEwMTczMDRiOlFqVmRSdlRNNmRzTmVVSzhTYm5MYW9uOG5EaHJ5bGlvT2hJSlpoYk9mVkln";
+    	
+    	Scanner keyboard = new Scanner(System.in);
+    	System.out.println("Table name: ");
+    	
+    	String tableName = keyboard.nextLine();
+    	
+    	File actCSV = File.createTempFile("act", ".csv");
+    	File caseCSV = File.createTempFile("case", ".csv");
+    	CSVUtils.createActCSV(log, actCSV);
+    	CSVUtils.createCaseCSV(log, caseCSV);
     	
     	
-    	String url = "https://hieu-le-rwth-aachen-de.training.celonis.cloud";
-    	String apiToken = "M2M5ZWJmODItZTYzZi00ZDI5LTg3Y2QtYjY2NWY4YmFkOWY2Om9HKytLY1lZcFV6NXNSSnBGS0hNc2poUUJ0R09sbXNjTnp5Syt6VDVkZDZP";
-    	String dataPoolId = "1956bd42-c2ab-4d0a-a0ba-85346953ffa0";
-    	String timestampName = "completeTime";
-    	String tableName = "new-csv-7";
+    	Celonis celonis = new Celonis(url, apiToken);    	
+        String dataPoolId = celonis.createDataPool(tableName + "_DATAPOOL");
+    	celonis.uploadCSV(dataPoolId, actCSV.getPath(), tableName + "_ACTIVITIES", EventLogUtils.TIMESTAMPKEY, 100000);    
+    	celonis.uploadCSV(dataPoolId, caseCSV.getPath(), tableName + "_CASE", EventLogUtils.TIMESTAMPKEY, 100000);
+    	String dataModelId = celonis.createDataModel(tableName + "_DATAMODEL", dataPoolId);
+    	celonis.addTableFromPool(tableName + "_ACTIVITIES", dataPoolId, dataModelId);
+    	celonis.addTableFromPool(tableName + "_CASE", dataPoolId, dataModelId);
+    	celonis.addForeignKeys(tableName + "_ACTIVITIES", EventLogUtils.CASEIDKEY, tableName + "_CASE", 
+    							EventLogUtils.CASEIDKEY, dataModelId, dataPoolId);
+    	celonis.addProcessConfiguration(dataModelId, dataPoolId, tableName+"_ACTIVITIES", tableName+"_CASE", 
+    								EventLogUtils.CASEIDKEY, EventLogUtils.ACTKEY, EventLogUtils.TIMESTAMPKEY);
+    	celonis.reloadDataModel(dataModelId, dataPoolId);
+    	String workspaceId = celonis.createWorkspace(dataModelId, tableName+"_WORKSPACE");
+    	String anaId = celonis.createAnalysis(workspaceId, tableName+"_ANALYSIS");
     	
-    	Celonis celonis = new Celonis(url, apiToken);
+    	actCSV.delete();
+    	caseCSV.delete();
     	
-        
-    	celonis.uploadCSV(dataPoolId, tempFileLocation, tableName, timestampName, 100000);    
         return log;            
         
         

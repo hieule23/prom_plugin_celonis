@@ -16,7 +16,7 @@ public class CSVParsingOptions {
         this.lineEnding = "\r\n";
         this.separatorSequence = ",";
         this.decimalSeparator = ".";
-        this.dateFormat = "yyyy/MM/dd HH:mm:ss.SSS";
+        this.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXX";
 	}
 	public String getCharSet() {
 		return charSet;
